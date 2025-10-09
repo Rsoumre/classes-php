@@ -7,7 +7,7 @@ class User {
     public $email;             
     public $firstname;        
     public $lastname;         
-    private $conn;             
+    private $isConnected = false;          
     
 
     // Cette méthode est automatiquement appelée lors de la création d'un nouvel objet User.
