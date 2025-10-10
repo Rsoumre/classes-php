@@ -1,4 +1,7 @@
 <?php
+
+session_start(); // Démarre la session pour garder la connexion
+
 class Userpdo {
     private $id;
     public $login;
@@ -8,7 +11,7 @@ class Userpdo {
     private $conn;
     private $isConnected = false;
 
-    // Connexion PDO
+    // Constructeur : connexion PDO et récupération de l'utilisateur connecté depuis session
     public function __construct() {
         try {
             $this->conn = new PDO("mysql:host=localhost;dbname=classes-php", "admin", "root");
@@ -16,11 +19,16 @@ class Userpdo {
         } catch (PDOException $e) {
             die("Erreur de connexion : " . $e->getMessage());
         }
+
+        // Si l'utilisateur est déjà en session, on hydrate l'objet
+        if (isset($_SESSION['user_id'])) {
+            $this->loadUserById($_SESSION['user_id']);
+        }
     }
 
-    // Inscription avec vérification des doublons
+    // Inscription d'un nouvel utilisateur
     public function register($login, $password, $email, $firstname, $lastname) {
-        // Vérifier si login ou email existe déjà
+        // Vérification doublon login ou email
         $stmt = $this->conn->prepare("SELECT * FROM utilisateurs WHERE login = ? OR email = ?");
         $stmt->execute([$login, $email]);
         if ($stmt->fetch()) {
@@ -28,11 +36,11 @@ class Userpdo {
         }
 
         // Hash du mot de passe
-        $password = password_hash($password, PASSWORD_DEFAULT);
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
-        // Insertion
+        // Insertion en base
         $stmt = $this->conn->prepare("INSERT INTO utilisateurs (login, password, email, firstname, lastname) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$login, $password, $email, $firstname, $lastname]);
+        $stmt->execute([$login, $passwordHash, $email, $firstname, $lastname]);
 
         return [
             "login" => $login,
@@ -46,14 +54,11 @@ class Userpdo {
     public function connect($login, $password) {
         $stmt = $this->conn->prepare("SELECT * FROM utilisateurs WHERE login = ?");
         $stmt->execute([$login]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($result && password_verify($password, $result['password'])) {
-            $this->id = $result['id'];
-            $this->login = $result['login'];
-            $this->email = $result['email'];
-            $this->firstname = $result['firstname'];
-            $this->lastname = $result['lastname'];
+        if ($user && password_verify($password, $user['password'])) {
+            $this->hydrate($user);
+            $_SESSION['user_id'] = $this->id; // Sauvegarde la session
             $this->isConnected = true;
             return true;
         }
@@ -68,6 +73,10 @@ class Userpdo {
         $this->firstname = null;
         $this->lastname = null;
         $this->isConnected = false;
+
+        if (isset($_SESSION['user_id'])) {
+            unset($_SESSION['user_id']);
+        }
     }
 
     // Supprimer l'utilisateur connecté
@@ -79,13 +88,14 @@ class Userpdo {
         }
     }
 
-    // Mise à jour
+    // Mettre à jour les infos de l'utilisateur
     public function update($login, $password, $email, $firstname, $lastname) {
         if ($this->isConnected) {
-            $password = password_hash($password, PASSWORD_DEFAULT);
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $this->conn->prepare("UPDATE utilisateurs SET login=?, password=?, email=?, firstname=?, lastname=? WHERE id=?");
-            $stmt->execute([$login, $password, $email, $firstname, $lastname, $this->id]);
+            $stmt->execute([$login, $passwordHash, $email, $firstname, $lastname, $this->id]);
 
+            // Mettre à jour l'objet
             $this->login = $login;
             $this->email = $email;
             $this->firstname = $firstname;
@@ -93,7 +103,7 @@ class Userpdo {
         }
     }
 
-    // Vérifie la connexion
+    // Vérifie si l'utilisateur est connecté
     public function isConnected() {
         return $this->isConnected;
     }
@@ -117,38 +127,26 @@ class Userpdo {
     public function getEmail() { return $this->email; }
     public function getFirstname() { return $this->firstname; }
     public function getLastname() { return $this->lastname; }
+
+    // ----- Méthodes privées -----
+
+    // Hydrate l'objet avec un tableau issu de la base
+    private function hydrate($user) {
+        $this->id = $user['id'];
+        $this->login = $user['login'];
+        $this->email = $user['email'];
+        $this->firstname = $user['firstname'];
+        $this->lastname = $user['lastname'];
+        $this->isConnected = true;
+    }
+
+    // Charge un utilisateur par son ID
+    private function loadUserById($id) {
+        $stmt = $this->conn->prepare("SELECT * FROM utilisateurs WHERE id = ?");
+        $stmt->execute([$id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($user) {
+            $this->hydrate($user);
+        }
+    }
 }
- 
-
-
-// On inclut la classe Userpdo
-require_once "user-pdo.php";
- 
-// Création d'un nouvel objet Userpdo
-$user = new Userpdo();
-
-//  Étape 1 : Inscription d'un utilisateur
-$result = $user->register("Tom21", "azerty", "tom21@gmail.com", "Tom", "Dupont");
-if (isset($result['error'])) {
-    echo " " . $result['error'] . "<br>";
-} else {
-    echo " Utilisateur enregistré avec succès !<br>";
-}
-
-//  Étape 2 : Connexion avec le login + mot de passe
-if ($user->connect("Tom21", "azerty")) {
-    echo " Connexion réussie avec PDO !<br>";
-} else {
-    echo " Connexion échouée avec PDO !<br>";
-}
-
-//  Étape 3 : Afficher toutes les infos de l'utilisateur connecté
-echo "<pre>";
-print_r($user->getAllInfos());
-echo "</pre>";
-
-//  Étape 4 (optionnelle) : Mise à jour des infos
-//$user->update("Tom22", "newpass", "tom22@gmail.com", "Thomas", "Dupont");
-
-//  Étape 5 (optionnelle) : Supprimer l'utilisateur
-//$user->delete();
