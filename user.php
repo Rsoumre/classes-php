@@ -12,7 +12,7 @@ class User {
     private $conn;
 
     public function __construct() {
-        $this->conn = new mysqli("localhost", "admin", "root", "classes-php");
+        $this->conn = new mysqli("localhost", "admin", "root", "classes");
         if ($this->conn->connect_error) {
             die("Erreur de connexion : " . $this->conn->connect_error);
         }

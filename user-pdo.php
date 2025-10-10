@@ -14,7 +14,7 @@ class Userpdo {
     // Constructeur : connexion PDO et récupération de l'utilisateur connecté depuis session
     public function __construct() {
         try {
-            $this->conn = new PDO("mysql:host=localhost;dbname=classes-php", "admin", "root");
+            $this->conn = new PDO("mysql:host=localhost;dbname=classes", "admin", "root");
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
             die("Erreur de connexion : " . $e->getMessage());
